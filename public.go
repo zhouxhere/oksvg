@@ -177,7 +177,6 @@ func ParseSVGColorNum(colorStr string) (r, g, b uint8, err error) {
 // ParseSVGColor parses an SVG color string in all forms
 // including all SVG1.1 names, obtained from the image.colornames package
 func ParseSVGColor(colorStr string) (color.Color, error) {
-	// _, _, _, a := curColor.RGBA()
 	v := strings.ToLower(colorStr)
 	if strings.HasPrefix(v, "url") { // We are not handling urls
 		// and gradients and stuff at this point
@@ -195,6 +194,8 @@ func ParseSVGColor(colorStr string) (color.Color, error) {
 			return color.NRGBA{uint8(r), uint8(g), uint8(b), uint8(a)}, nil
 		}
 	}
+
+	// Handle rgb(r, g, b)
 	cStr := strings.TrimPrefix(colorStr, "rgb(")
 	if cStr != colorStr {
 		cStr := strings.TrimSuffix(cStr, ")")
@@ -213,6 +214,31 @@ func ParseSVGColor(colorStr string) (color.Color, error) {
 		return color.NRGBA{cvals[0], cvals[1], cvals[2], 0xFF}, nil
 	}
 
+	// Handle rgba(r, g, b, a)
+	cStr = strings.TrimPrefix(colorStr, "rgba(")
+	if cStr != colorStr {
+		cStr := strings.TrimSuffix(cStr, ")")
+		vals := strings.Split(cStr, ",")
+		if len(vals) != 4 {
+			return color.NRGBA{}, errParamMismatch
+		}
+		var cvals [4]uint8
+		var err error
+		for i := 0; i < 3; i++ {
+			cvals[i], err = parseColorValue(vals[i])
+			if err != nil {
+				return nil, err
+			}
+		}
+		alpha, err := parseAlphaValue(vals[3])
+		if err != nil {
+			return nil, err
+		}
+		cvals[3] = alpha
+		return color.NRGBA{cvals[0], cvals[1], cvals[2], cvals[3]}, nil
+	}
+
+	// Handle hsl(h, s%, l%)
 	cStr = strings.TrimPrefix(colorStr, "hsl(")
 	if cStr != colorStr {
 		cStr := strings.TrimSuffix(cStr, ")")
@@ -284,4 +310,21 @@ func ParseSVGColor(colorStr string) (color.Color, error) {
 		return color.NRGBA{r, g, b, 0xFF}, nil
 	}
 	return nil, errParamMismatch
+}
+
+// parseAlphaValue parses the alpha value from a string (0-1 or percentage)
+func parseAlphaValue(alphaStr string) (uint8, error) {
+	alphaStr = strings.TrimSpace(alphaStr)
+	if strings.HasSuffix(alphaStr, "%") {
+		percent, err := strconv.ParseFloat(alphaStr[:len(alphaStr)-1], 64)
+		if err != nil {
+			return 0, fmt.Errorf("invalid alpha percentage: '%s'", alphaStr)
+		}
+		return uint8(math.Round(percent * 2.55)), nil
+	}
+	alpha, err := strconv.ParseFloat(alphaStr, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid alpha value: '%s'", alphaStr)
+	}
+	return uint8(math.Round(alpha * 255)), nil
 }

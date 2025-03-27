@@ -346,7 +346,8 @@ func (c *IconCursor) readStartElement(se xml.StartElement) (err error) {
 	if !ok {
 		errStr := "Cannot process svg element " + se.Name.Local
 		if c.returnError(errStr) {
-			return errors.New(errStr)
+			// return errors.New(errStr)
+			return nil
 		}
 		return nil
 	}
